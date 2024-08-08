@@ -11,8 +11,6 @@ def detectEyesPosition(frame, landmarks):
             return 1 #left
         elif left_eye_position==2:
             return 2 #right
-        elif left_eye_position==3:
-            return 3 #up
     return 0 #normal
 
 

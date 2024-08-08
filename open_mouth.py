@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-def detectOpenMouth(frame, landmarks):
+def detectOpenMouth(landmarks):
     mouth_start = 48
     mouth_end = 67
 
