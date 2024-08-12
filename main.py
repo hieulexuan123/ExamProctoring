@@ -8,7 +8,7 @@ import random
 
 from open_mouth import detectOpenMouth
 from eye_tracker import detectEyesPosition
-from head_pose import calculateHeadAngle
+from head_pose import estimateHeadPose
 from detect_prohibited_items import ItemDetector
 from detect_occlusion import OcclusionDetector
 
@@ -22,68 +22,90 @@ BaseOptions = mp.tasks.BaseOptions
 FaceDetector = mp.tasks.vision.FaceDetector
 FaceDetectorOptions = mp.tasks.vision.FaceDetectorOptions
 FaceDetectorResult = mp.tasks.vision.FaceDetectorResult
+FaceLandmarker = mp.tasks.vision.FaceLandmarker
+FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-options = FaceDetectorOptions(
+detect_options = FaceDetectorOptions(
     base_options=BaseOptions(model_asset_path='blaze_face_short_range.tflite'),
+    running_mode=VisionRunningMode.VIDEO)
+landmark_options = FaceLandmarkerOptions(
+    base_options=BaseOptions(model_asset_path='face_landmarker.task'),
+    output_face_blendshapes=False,
+    output_facial_transformation_matrixes=False,
+    num_faces=2,
     running_mode=VisionRunningMode.VIDEO)
 
 start = time.time()
-with FaceDetector.create_from_options(options) as detector:
+with FaceLandmarker.create_from_options(landmark_options) as landmarker:
 
     while True:
-        _, frame = cap.read()
-        #item_detector.detect(frame)
+        _, frame = cap.read()        
+        frame = cv2.flip(frame, 1)
         
-        frame_h, frame_w = frame.shape[:2]
+        #Detect unprohibited item
+        item_detector.detect(frame)
+
+        #Detect faces
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-        faces = detector.detect_for_video(mp_image, int((time.time() - start)*1000)).detections
+        faces = landmarker.detect_for_video(mp_image, int((time.time() - start)*1000)).face_landmarks
 
         if len(faces)==0:
             cv2.putText(frame, 'No person found', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+        elif len(faces)>1:
+            cv2.putText(frame, 'Too many people found', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
         else:
-            for face in faces:
-                box = face.bounding_box
-                x1, y1, w, h = int(box.origin_x), int(box.origin_y), int(box.width), int(box.height)
-                x2, y2 = x1 + w, y1 + h
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0))
+            face = faces[0]
+            h, w = frame.shape[:2]
+            x_min, x_max, y_min, y_max = w, 0, h, 0
 
-                #detect occlusion
-                crop_face = frame[y1:y2, x1:x2]
+            face_2d, face_3d = [], []  #for head pose estimation
+            for idx, landmark in enumerate(face):
+                landmark_x, landmark_y = int(landmark.x * w), int(landmark.y * h)
+                x_min = min(x_min, landmark_x)
+                x_max = max(x_max, landmark_x)
+                y_min = min(y_min, landmark_y)
+                y_max = max(y_max, landmark_y)
+
+                if idx==33 or idx==263 or idx==1 or idx==61 or idx==291 or idx==199:
+                    face_2d.append([landmark_x, landmark_y])
+                    face_3d.append([landmark_x, landmark_y, landmark.z])
+            
+            #Draw bounding box for the face
+            x_min, x_max, y_min, y_max = max(x_min, 0), min(x_max, w), max(y_min, 0), min(y_max, h)
+            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0))
+
+            #Head pose
+            head_pose = estimateHeadPose(w, (w/2, h/2), face_2d, face_3d)
+            if head_pose==1:
+                cv2.putText(frame, 'Looking up', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+            elif head_pose==2:
+                cv2.putText(frame, 'Looking down', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+            elif head_pose==3:
+                cv2.putText(frame, 'Looking right', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+            elif head_pose==4:
+                cv2.putText(frame, 'Looking left', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+            else:
+                #Detect occlusion
+                crop_face = frame[y_min:y_max, x_min:x_max]
                 if occlusion_detector.detect(crop_face):
                     cv2.putText(frame, 'Face is occluded', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
-                #cv2.imwrite(f'face/{random.random()}.jpg', crop_face)
+                else:
+                    #Detect open mouth
+                    is_mouth_opened = detectOpenMouth(h, w, face)
+                    if is_mouth_opened:
+                        cv2.putText(frame, 'Mouth is opened', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
 
-        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # faces = face_detector(gray)
-        # for face in faces:
-        #     cv2.rectangle(frame, (face.left(), face.top()), (face.right(), face.bottom()), (0, 255, 0))
-        #     landmarks = landmark_predictor(gray, face)
-
-        #     x_angle, y_angle = calculateHeadAngle(frame, landmarks)
-        #     text = ''
-        #     if x_angle > 25:
-        #         text += 'Looking right'
-        #     elif x_angle < -30:
-        #         text += 'Looking left'
-        #     if y_angle > 0 and y_angle < 165:
-        #         text += 'Looking up'
-        #     elif y_angle < 0 and y_angle > -172:
-        #         text += 'Looking down'
-        #     if text!='': #if head is not straight
-        #         cv2.putText(frame, text, (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
-        #     else: #if head is straight, detect eye direction
-        #         eyes_pos = detectEyesPosition(gray, landmarks)
-        #         if eyes_pos>=1:
-        #             if eyes_pos==1:
-        #                 text = 'Looking right'
-        #             elif eyes_pos==2:
-        #                 text = 'Looking left'
-        #             cv2.putText(frame, text, (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
-
-        #     if detectOpenMouth(landmarks):
-        #         cv2.putText(frame, f'Mouth open', (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
-        
+                    #Detect eye gaze
+                    eyes_pos = detectEyesPosition(h, w, face)
+                    if eyes_pos==1:
+                        cv2.putText(frame, 'Looking left', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+                    elif eyes_pos==2:
+                        cv2.putText(frame, 'Looking right', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
+                
+            
+            #cv2.imwrite(f'face/{random.random()}.jpg', crop_face)
+       
         cv2.imshow('Webcam', frame)
 
         if cv2.waitKey(1) == 27:

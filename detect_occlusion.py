@@ -50,7 +50,7 @@ class OcclusionDetector:
             pred = torch.sigmoid(pred)
         return (pred>0.5).item()
     
-face = cv2.imread('face/0.22154597359212025.jpg')
-occlusion_detector = OcclusionDetector('occlussion_classify_best.pt')
-print(occlusion_detector.detect(face))
+# face = cv2.imread('face/0.22154597359212025.jpg')
+# occlusion_detector = OcclusionDetector('occlussion_classify_best.pt')
+# print(occlusion_detector.detect(face))
 
