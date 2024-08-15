@@ -5,7 +5,8 @@ import mediapipe as mp
 import face_recognition
 
 import time
-import random
+import sys
+from multiprocessing import Queue, Process, Event
 
 from open_mouth import detectOpenMouth
 from eye_tracker import detectEyesPosition
@@ -14,24 +15,30 @@ from detect_prohibited_items import ItemDetector
 from detect_occlusion import OcclusionDetector
 from auth import Authentication
 
-def proctor(user):
+def detectItems(q, stop_flag):
     cap = cv2.VideoCapture(0)
-    #face_detector = dlib.get_frontal_face_detector()
-    landmark_predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
     item_detector = ItemDetector('best.pt')
+
+    while not stop_flag.is_set():
+        _, frame = cap.read()        
+        frame = cv2.flip(frame, 1)
+        
+        #Detect unprohibited item
+        item_detector.detect(frame)
+
+        q.put(frame)
+    cap.release()
+    q.cancel_join_thread()
+    
+
+def processPeople(q, stop_flag, user):
     occlusion_detector = OcclusionDetector('occlussion_classify_best.pt')
 
     BaseOptions = mp.tasks.BaseOptions
-    FaceDetector = mp.tasks.vision.FaceDetector
-    FaceDetectorOptions = mp.tasks.vision.FaceDetectorOptions
-    FaceDetectorResult = mp.tasks.vision.FaceDetectorResult
     FaceLandmarker = mp.tasks.vision.FaceLandmarker
     FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
     VisionRunningMode = mp.tasks.vision.RunningMode
 
-    detect_options = FaceDetectorOptions(
-        base_options=BaseOptions(model_asset_path='blaze_face_short_range.tflite'),
-        running_mode=VisionRunningMode.VIDEO)
     landmark_options = FaceLandmarkerOptions(
         base_options=BaseOptions(model_asset_path='face_landmarker.task'),
         output_face_blendshapes=False,
@@ -41,18 +48,15 @@ def proctor(user):
 
     start = time.time()
     with FaceLandmarker.create_from_options(landmark_options) as landmarker:
-
-        while True:
-            _, frame = cap.read()        
-            frame = cv2.flip(frame, 1)
-            
-            #Detect unprohibited item
-            #item_detector.detect(frame)
+        while not stop_flag.is_set():
+            #Get the frame that was already processed by ItemDetector
+            if q.empty():
+                continue
+            frame = q.get()
 
             #Detect faces
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
             faces = landmarker.detect_for_video(mp_image, int((time.time() - start)*1000)).face_landmarks
-
             if len(faces)==0:
                 cv2.putText(frame, 'No person found', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
             elif len(faces)>1:
@@ -79,22 +83,22 @@ def proctor(user):
                 cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0))
 
                 #Face verification
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                crop_face_encoding = face_recognition.face_encodings(rgb_frame, [(y_min, x_max, y_max, x_min)])
-                isMatch = face_recognition.compare_faces(crop_face_encoding, np.array(user['face_encoding']))[0]
-                if isMatch:
-                    label = 'True person'
-                    text_color = (0, 255, 0)
-                else:
-                    label = 'Wrong person'
-                    text_color = (0, 0, 255)
-                label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                label_x = x_min
-                label_y = y_min - 10 if y_min - 10 > 10 else y_min + 10
-                cv2.rectangle(frame, (label_x, label_y - label_size[1] - 2), 
-                            (label_x + label_size[0], label_y + 2), text_color, -1)
-                cv2.putText(frame, label, (label_x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 
-                            0.5, (255, 255, 255), 1)
+                # rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # crop_face_encoding = face_recognition.face_encodings(rgb_frame, [(y_min, x_max, y_max, x_min)])
+                # isMatch = face_recognition.compare_faces(crop_face_encoding, np.array(user['face_encoding']))[0]
+                # if isMatch:
+                #     label = 'True person'
+                #     text_color = (0, 255, 0)
+                # else:
+                #     label = 'Wrong person'
+                #     text_color = (0, 0, 255)
+                # label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                # label_x = x_min
+                # label_y = y_min - 10 if y_min - 10 > 10 else y_min + 10
+                # cv2.rectangle(frame, (label_x, label_y - label_size[1] - 2), 
+                #             (label_x + label_size[0], label_y + 2), text_color, -1)
+                # cv2.putText(frame, label, (label_x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 
+                #             0.5, (255, 255, 255), 1)
 
                 #Head pose
                 head_pose = estimateHeadPose(w, (w/2, h/2), face_2d, face_3d)
@@ -126,14 +130,25 @@ def proctor(user):
                     
                 
                 #cv2.imwrite(f'face/{random.random()}.jpg', crop_face)
-        
+
             cv2.imshow('Webcam', frame)
 
             if cv2.waitKey(1) == 27:
-                break
-
-    cap.release()
+                stop_flag.set()
     cv2.destroyAllWindows()
+
+def proctor(user):
+    item_queue = Queue()
+    stop_flag = Event()
+
+    p1 = Process(target=detectItems, args=(item_queue, stop_flag))
+    p2 = Process(target=processPeople, args=(item_queue, stop_flag, user))
+
+    p1.start()
+    p2.start()
+
+    p1.join()
+    p2.join()
 
 if __name__=='__main__':
     auth = Authentication(proctor)
