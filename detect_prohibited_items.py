@@ -6,7 +6,7 @@ class ItemDetector:
         self.model = YOLO(model_path)
     
     def detect(self, frame):
-        prediction = (self.model.predict(frame, imgsz=640, iou=0.5))[0]
+        prediction = (self.model.predict(frame, imgsz=640, iou=0.5, conf=0.5))[0]
         frame_h, frame_w = frame.shape[:2]
 
         cls_names = prediction.names
@@ -24,9 +24,8 @@ class ItemDetector:
     
     def annotate(self, frame, coord, cls, conf):
         x1, y1, x2, y2 = coord
-        print(x1, y1, x2, y2)
         #draw box
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 1)
 
         #annotate
         label = f"{cls}: {conf:.2f}"

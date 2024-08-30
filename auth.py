@@ -2,7 +2,12 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import json
 from PIL import Image, ImageTk
+import cv2
 import face_recognition
+import mediapipe as mp
+from deepface import DeepFace
+
+from face_recognizer import FaceRecognizer
 
 class Authentication:
     def __init__(self, callback):
@@ -96,7 +101,6 @@ class Authentication:
             return
 
         face_encodings = face_recognition.face_encodings(face_recognition.load_image_file(self.filepath))
-        print(face_encodings)
         if not face_encodings:
             messagebox.showwarning("Warning", "No face found in the image!")
             return
@@ -139,3 +143,7 @@ class Authentication:
     def showRegistrationPage(self):
         self.login_frame.pack_forget()
         self.registration_frame.pack(pady=10)
+
+# def callback(user):
+#     print(user)
+#auth = Authentication(None)

@@ -40,7 +40,7 @@ class OcclusionDetector:
                         ])
 
     def detect(self, face):
-        face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+        #face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
         face = Image.fromarray(face) #convert to PIL image
         face = self.transform(face)
         face = face.unsqueeze(0)
