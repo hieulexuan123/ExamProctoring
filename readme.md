@@ -20,9 +20,9 @@ To utilize the power of a multi-core CPU, two parallel processes are employed:
 
 Both processes annotate the input frame directly, as it is a critical resource. The main process then displays the annotated frame.
 
-Due to the time-consuming nature of anti-spoofing and face recognition tasks, these are handled by a separate process called *verifyFace*. The *verifyFace* process frequently receives the raw face data detected by *processFaces*, performs verification, and updates the is_match field in the shared face_data.
+Due to the time-consuming nature of anti-spoofing and face verification tasks, these are handled by a separate process called *verifyFace*. The *verifyFace* process frequently receives the raw face data detected by *processFaces*, performs verification, and updates the is_match field in the shared face_data.
 
-Since the verifyFace process is not synchronized with processItems and processFaces at every frame, it does not impact the time taken to process each frame, ensuring smooth and efficient processing.
+Since the *verifyFace* process is not synchronized with *processItems* and *processFaces* at every frame, it does not impact the time taken to process each frame, ensuring smooth and efficient processing.
 
 ![](demo/app_flow.jpg)
 ### Flow of processFaces
@@ -31,6 +31,10 @@ Since the verifyFace process is not synchronized with processItems and processFa
 ![](demo/verify_face_flow.jpg)
 
 ## Features
+- Registration:
+![](demo/register.jpg)
+- Log in:
+![](demo/login.jpg)
 - Prohibited items detection:
 
 I choose *yolov8n* because of its small size and its ability to run real time in CPU, and train it on my custom [dataset](https://universe.roboflow.com/abc-ghsfm/tech-device-detection). The dataset contains 1753 images in 3 classes: phone, headphone, headset. Since the headset is small, the nano version of yolov8 makes many false positives about headset objects. Therefore, I only use the model for detecting phones.
@@ -44,7 +48,7 @@ To avoid the situation that user could use their hands or face masks to cover th
 - Face anti-spoofing: 
 
 I choose use the trained model [DeePixBiS](https://github.com/Saiyam26/Face-Anti-Spoofing-using-DeePixBiS) for its small size and efficiency.
-- Face recoginiton: [face_recognition](https://github.com/ageitgey/face_recognition) library
+- Face verification: [face_recognition](https://github.com/ageitgey/face_recognition) library
 
 
 
