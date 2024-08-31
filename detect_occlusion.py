@@ -29,9 +29,9 @@ class Net(nn.Module):
         return out
 
 class OcclusionDetector:
-    def __init__(self, weight_path):
+    def __init__(self):
         self.model = Net()
-        self.model.load_state_dict(torch.load(weight_path, map_location='cpu'))
+        self.model.load_state_dict(torch.load('model/occlussion_classifier.pt', map_location='cpu'))
         self.model.eval()
         self.transform = transforms.Compose([
                             transforms.Resize((224, 224)),
@@ -40,7 +40,6 @@ class OcclusionDetector:
                         ])
 
     def detect(self, face):
-        #face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
         face = Image.fromarray(face) #convert to PIL image
         face = self.transform(face)
         face = face.unsqueeze(0)
@@ -49,8 +48,4 @@ class OcclusionDetector:
             print(pred)
             pred = torch.sigmoid(pred)
         return (pred>0.5).item()
-    
-# face = cv2.imread('face/0.22154597359212025.jpg')
-# occlusion_detector = OcclusionDetector('occlussion_classify_best.pt')
-# print(occlusion_detector.detect(face))
 

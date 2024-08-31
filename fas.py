@@ -25,7 +25,7 @@ class DeePixBiS(nn.Module):
 class FAS:
     def __init__(self):
         self.model = DeePixBiS()
-        self.model.load_state_dict(torch.load('DeePixBiS.pth', map_location='cpu'))
+        self.model.load_state_dict(torch.load('model/DeePixBiS.pth', map_location='cpu'))
         self.model.eval()
 
         self.transform = transforms.Compose([

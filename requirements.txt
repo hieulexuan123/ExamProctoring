@@ -1,0 +1,7 @@
+mediapipe
+opencv-python
+face_recognition
+ultralytics
+torch
+numpy
+pillow

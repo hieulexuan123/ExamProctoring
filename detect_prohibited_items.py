@@ -2,11 +2,11 @@ from ultralytics import YOLO
 import cv2
 
 class ItemDetector:
-    def __init__(self, model_path):
-        self.model = YOLO(model_path)
+    def __init__(self):
+        self.model = YOLO('model/item_detector.pt')
     
     def detect(self, frame):
-        prediction = (self.model.predict(frame, imgsz=640, iou=0.5, conf=0.5))[0]
+        prediction = (self.model.predict(frame, imgsz=640, iou=0.5, conf=0.5, classes=[2]))[0]
         frame_h, frame_w = frame.shape[:2]
 
         cls_names = prediction.names
