@@ -1,9 +1,7 @@
 # Exam Proctoring
 
 ## Demo 
-<video width="600" controls>
-  <source src="./demo/demo.mp4" type="video/mp4">
-</video>
+[![Watch the video](https://img.youtube.com/vi/nLWVxwuH6eA/0.jpg)](https://www.youtube.com/watch?v=nLWVxwuH6eA)
 
 ## How to use
 1. `pip install -r requirements.txt`
